@@ -1,0 +1,50 @@
+{
+  "name": "@your-username/llm-zod-retry",
+  "version": "0.1.0",
+  "description": "Type-safe structured-output retry wrapper for LLM calls using Zod validation.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run test:run && npm run build"
+  },
+  "keywords": [
+    "llm",
+    "zod",
+    "structured-output",
+    "retry",
+    "json",
+    "typescript"
+  ],
+  "peerDependencies": {
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^1.0.0",
+    "zod": "^3.22.0"
+  }
+}
