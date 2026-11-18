@@ -31,6 +31,12 @@ function validateOptions<TSchema extends z.ZodTypeAny>(
   if (!options.schema || typeof options.schema.safeParseAsync !== "function") {
     throw new TypeError("options.schema must be a valid Zod schema.");
   }
+  if (
+    options.onAttempt !== undefined &&
+    typeof options.onAttempt !== "function"
+  ) {
+    throw new TypeError("options.onAttempt must be a function.");
+  }
 
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   if (!Number.isInteger(maxRetries) || maxRetries < 0) {
@@ -72,6 +78,12 @@ async function parseAndValidate<TSchema extends z.ZodTypeAny>(
   return { ok: true, data: validation.data };
 }
 
+function cloneAttemptRecord(record: AttemptRecord): AttemptRecord {
+  return record.errors
+    ? { ...record, errors: [...record.errors] }
+    : { ...record };
+}
+
 /**
  * Calls an LLM with a message history and retries with targeted correction
  * prompts if JSON extraction, JSON parsing, or Zod schema validation fails.
@@ -103,18 +115,22 @@ export async function withRetry<TSchema extends z.ZodTypeAny>(
 
     const outcome = await parseAndValidate(rawOutput, options.schema);
 
+    const record: AttemptRecord = outcome.ok
+      ? { attempt, rawOutput, success: true }
+      : {
+          attempt,
+          rawOutput,
+          success: false,
+          failureKind: outcome.failureKind,
+          errors: outcome.errors,
+        };
+
+    attempts.push(record);
+    await options.onAttempt?.(cloneAttemptRecord(record));
+
     if (outcome.ok) {
-      attempts.push({ attempt, rawOutput, success: true });
       return { data: outcome.data, attempts };
     }
-
-    attempts.push({
-      attempt,
-      rawOutput,
-      success: false,
-      failureKind: outcome.failureKind,
-      errors: outcome.errors,
-    });
 
     if (attempt < totalAttempts) {
       const correctionPrompt = buildCorrectionPrompt(

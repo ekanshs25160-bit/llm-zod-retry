@@ -232,6 +232,92 @@ describe("withRetry", () => {
       })
     ).rejects.toThrow(RangeError);
 
+    await expect(
+      withRetry({
+        callLlm,
+        messages: baseMessages,
+        schema: UserSchema,
+        onAttempt: "not-a-function" as unknown as () => void,
+      })
+    ).rejects.toThrow(TypeError);
+
     expect(callLlm).not.toHaveBeenCalled();
+  });
+
+  it("invokes onAttempt in real time for both failed and successful attempts without allowing external mutation", async () => {
+    const events: string[] = [];
+    const callLlm = vi.fn(async () => {
+      const count = callLlm.mock.calls.length;
+      events.push(`llm:${count}`);
+      if (count === 1) return "{broken";
+      if (count === 2) return '{"name": "Alice", "age": -1, "role": "admin"}';
+      return '{"name": "Alice", "age": 25, "role": "admin"}';
+    });
+
+    const seenRecords: Array<{ attempt: number; success: boolean }> = [];
+    const result = await withRetry({
+      callLlm,
+      messages: baseMessages,
+      schema: UserSchema,
+      maxRetries: 2,
+      onAttempt: async (record) => {
+        events.push(`onAttempt:${record.attempt}:${record.success}`);
+        seenRecords.push({ attempt: record.attempt, success: record.success });
+        // Mutating the callback payload must not corrupt `result.attempts`.
+        record.errors?.push("mutated-externally");
+      },
+    });
+
+    expect(events).toEqual([
+      "llm:1",
+      "onAttempt:1:false",
+      "llm:2",
+      "onAttempt:2:false",
+      "llm:3",
+      "onAttempt:3:true",
+    ]);
+    expect(seenRecords).toEqual([
+      { attempt: 1, success: false },
+      { attempt: 2, success: false },
+      { attempt: 3, success: true },
+    ]);
+    expect(result.attempts[0]?.errors).not.toContain("mutated-externally");
+    expect(result.attempts[1]?.errors).not.toContain("mutated-externally");
+  });
+
+  it("invokes onAttempt for every attempt before throwing MaxRetriesExceededError", async () => {
+    const onAttempt = vi.fn();
+    const callLlm = vi
+      .fn()
+      .mockResolvedValueOnce("{broken")
+      .mockResolvedValueOnce("still not json");
+
+    await expect(
+      withRetry({
+        callLlm,
+        messages: baseMessages,
+        schema: UserSchema,
+        maxRetries: 1,
+        onAttempt,
+      })
+    ).rejects.toThrow(MaxRetriesExceededError);
+
+    expect(onAttempt).toHaveBeenCalledTimes(2);
+    expect(onAttempt).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        attempt: 1,
+        success: false,
+        failureKind: "json_parse",
+      })
+    );
+    expect(onAttempt).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        attempt: 2,
+        success: false,
+        failureKind: "json_extract",
+      })
+    );
   });
 });

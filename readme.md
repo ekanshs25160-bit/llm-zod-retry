@@ -93,6 +93,7 @@ Returns `Promise<{ data: z.infer<TSchema>, attempts: AttemptRecord[] }>`.
 | `messages` | `readonly ChatMessage[]` | Yes | Initial message history (`{ role, content }`). Never mutated by `withRetry`. |
 | `schema` | `z.ZodTypeAny` | Yes | Zod schema used to validate the parsed JSON and infer `result.data`. |
 | `maxRetries` | `number` | No | Maximum correction retries after the first failure. Defaults to `2`. |
+| `onAttempt` | `(record: AttemptRecord) => void \| Promise<void>` | No | Real-time callback invoked after each attempt finishes (both failures and success), useful for progress UIs or logging. |
 
 ### `MaxRetriesExceededError`
 

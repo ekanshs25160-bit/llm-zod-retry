@@ -44,6 +44,8 @@ export interface WithRetryOptions<TSchema extends z.ZodTypeAny> {
   schema: TSchema;
   /** Maximum number of correction retries after the initial attempt fails. Defaults to 2. */
   maxRetries?: number;
+  /** Optional real-time callback invoked after each attempt finishes (both failures and success). */
+  onAttempt?: (record: AttemptRecord) => void | Promise<void>;
 }
 
 export interface WithRetryResult<TData> {
